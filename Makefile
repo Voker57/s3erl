@@ -5,7 +5,7 @@ clean:
 	mkdir -p ebin
 	rm -f ebin/*
 
-VERSION=s3erl-0.1
+VERSION=s3erl-0.2
 release:
 	mkdir disttmp
 	svn export `svn info . | grep '^URL:'| cut -d' ' -f2` disttmp/${VERSION}

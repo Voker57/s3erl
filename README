@@ -3,8 +3,8 @@ s3erl: an erlang wrapper for Amazon's S3 storage service
 
 Author:  Andrew Birkett <andy@nobugs.org>
 
-Version: 0.1
-Date:    2007/12/07
+Version: 0.2
+Date:    2007/12/29
 
 What is it?
 -----------
@@ -28,8 +28,8 @@ Requirements
 Installation and test
 ---------------------
 
-$ tar zxvf s3erl-0.1.tar.gz
-$ cd s3erl-0.1
+$ tar zxvf s3erl-0.2.tar.gz
+$ cd s3erl-0.2
 $ make
 $ echo "code:add_pathz(\"$PWD/ebin\")." >> ~/.erlang
 
@@ -51,6 +51,10 @@ bucket name for this test.
 
 Version History
 ---------------
+
+v0.2 - 2007/12/29
+
+  - Fix timezone bug in Date: header
 
 v0.1 - 2007/12/07
 
