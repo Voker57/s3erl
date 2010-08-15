@@ -213,7 +213,12 @@ buildUrl(Bucket,Path,QueryParams) ->
     "http://" ++ buildHost(Bucket) ++ "/" ++ Path ++ queryParams(QueryParams).
 
 buildContentHeaders( <<>>, _ ) -> [];
-buildContentHeaders( Contents, ContentType ) -> 
+buildContentHeaders( {callback, _Fun, Size}, ContentType )
+   ->
+    [{"Content-Length", integer_to_list(Size)},
+     {"Content-Type", ContentType}];
+buildContentHeaders( Contents, ContentType )
+   ->
     [{"Content-Length", integer_to_list(size(Contents))},
      {"Content-Type", ContentType}].
 
@@ -228,7 +233,10 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 		 end,
     OriginalHeaders = buildContentHeaders( Contents, ContentType ) ++ ACLHeaders,
     ContentMD5 = "",
-    Body = Contents,
+    Body = case Contents of
+        {callback, Fun, _Size} -> Fun;
+        Other -> Other
+    end,
 
     #aws_credentials{ accessKeyId=AKI, secretAccessKey=SAK } = AwsCredentials,
 
@@ -243,7 +251,7 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
     Options = [ {headers_as_is,true} ],
 
 %    io:format("Sending request ~p~n", [Request]),
-    Reply = ibrowse:send_req(Url, Headers, Method, Body, Options),
+    Reply = ibrowse:send_req(Url, Headers, Method, Body, Options, infinity),
 %    io:format("HTTP reply was ~p~n", [Reply]),
     case Reply of
    {ok, Code, ResponseHeaders, ResponseBody}
