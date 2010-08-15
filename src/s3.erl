@@ -64,6 +64,7 @@ list_objects (Bucket) -> list_objects( Bucket, [] ).
 init(AwsCredentials) ->
     crypto:start(),
     inets:start(),
+    ibrowse:start(),
     {ok, AwsCredentials}.
 
 %%--------------------------------------------------------------------
@@ -101,7 +102,7 @@ handle_call({delete, Bucket }, _From, AwsCredentials) ->
 % Object operations
 handle_call({put, Bucket, Key, Content, ContentType }, _From, AwsCredentials) ->
     {Headers,_Body} = putRequest( AwsCredentials,Bucket, Key, Content, ContentType),
-    {value,{"etag",ETag}} = lists:keysearch( "etag", 1, Headers ),
+    {value,{"ETag",ETag}} = lists:keysearch( "ETag", 1, Headers ),
     {reply, {ok, ETag}, AwsCredentials};
 
 handle_call({ list, Bucket, Options }, _From, AwsCredentials) ->
@@ -239,26 +240,18 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 		{"Host", buildHost(Bucket) },
 		{"Date", Date } 
 	       | OriginalHeaders ],
-    
-    Request = case Method of
-		  get -> { Url, Headers };
-		  put -> { Url, Headers, ContentType, Body };
-		  delete -> { Url, Headers }
-	      end,
-    HttpOptions = [],
-    Options = [ {sync,true}, {headers_as_is,true} ],
+    Options = [ {headers_as_is,true} ],
 
 %    io:format("Sending request ~p~n", [Request]),
-    Reply = http:request( Method, Request, HttpOptions, Options ),
-    
+    Reply = ibrowse:send_req(Url, Headers, Method, Body, Options),
 %    io:format("HTTP reply was ~p~n", [Reply]),
     case Reply of
-	{ok, {{_HttpVersion, Code, _ReasonPhrase}, ResponseHeaders, ResponseBody }} 
-	 when Code=:=200; Code=:=204
+   {ok, Code, ResponseHeaders, ResponseBody}
+      when Code=:="200"; Code=:="204"
 	      -> 
 	    {ResponseHeaders,ResponseBody};
 
-	{ok, {{_HttpVersion, _HttpCode, _ReasonPhrase}, _ResponseHeaders, ResponseBody }} -> 
+	 {ok, _Code, _ResponseHeaders, ResponseBody} -> 
 	    throw ( parseErrorXml(ResponseBody) )
     end.
 
