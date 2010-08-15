@@ -12,7 +12,8 @@
 %% API
 -export([ start/1, set_acl/1,
 	  list_buckets/0, create_bucket/1, delete_bucket/1,
-	  list_objects/2, list_objects/1, write_object/4, read_object/2, delete_object/2 ]).
+	  list_objects/2, list_objects/1, write_object/4, read_object/2,
+	  read_object/3, delete_object/2 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
@@ -40,8 +41,9 @@ list_buckets ()      -> gen_server:call(?MODULE, {listbuckets}, infinity).
 
 write_object (Bucket, Key, Data, ContentType) -> 
     gen_server:call(?MODULE, {put, Bucket, Key, Data, ContentType}, infinity).
-read_object (Bucket, Key) -> 
-    gen_server:call(?MODULE, {get, Bucket, Key}, infinity).
+read_object (Bucket, Key) -> read_object (Bucket, Key, []).
+read_object (Bucket, Key, Options) ->
+    gen_server:call(?MODULE, {get, Bucket, Key, Options}, infinity).
 delete_object (Bucket, Key) -> 
     gen_server:call(?MODULE, {delete, Bucket, Key}, infinity).
 
@@ -110,8 +112,8 @@ handle_call({ list, Bucket, Options }, _From, AwsCredentials) ->
     {_, Body} = getRequest( AwsCredentials, Bucket, "", Headers ),
     {reply, parseBucketListXml(Body), AwsCredentials};
 
-handle_call({ get, Bucket, Key }, _From, AwsCredentials) ->
-    {reply, getRequest( AwsCredentials, Bucket, Key, [] ), AwsCredentials};
+handle_call({ get, Bucket, Key, Options }, _From, AwsCredentials) ->
+    {reply, getRequest( AwsCredentials, Bucket, Key, [], Options ), AwsCredentials};
 
 handle_call({delete, Bucket, Key }, _From, AwsCredentials) ->
     try 
@@ -170,8 +172,9 @@ option_to_param( { maxkeys, X } ) ->
 option_to_param( { delimiter, X } ) -> 
     { "delimiter", X }.
 
-getRequest( AwsCredentials, Bucket, Key, Headers ) ->
-    genericRequest( AwsCredentials, get, Bucket, Key, Headers, <<>>, "" ).
+getRequest( AwsCredentials, Bucket, Key, Headers) -> getRequest( AwsCredentials, Bucket, Key, Headers, [] ).
+getRequest( AwsCredentials, Bucket, Key, Headers, Options ) ->
+    genericRequest( AwsCredentials, get, Bucket, Key, Headers, <<>>, "", Options ).
 
 putRequest( AwsCredentials, Bucket, Key, Content, ContentType ) ->
     genericRequest( AwsCredentials, put, Bucket, Key, [], Content, ContentType ).
@@ -222,7 +225,8 @@ buildContentHeaders( Contents, ContentType )
     [{"Content-Length", integer_to_list(size(Contents))},
      {"Content-Type", ContentType}].
 
-genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType ) ->
+genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType ) -> genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType, []).
+genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType, Options ) ->
     Date = httpd_util:rfc1123_date(),
     MethodString = string:to_upper( atom_to_list(Method) ),
     Url = buildUrl(Bucket,Path,QueryParams),
@@ -248,10 +252,10 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 		{"Host", buildHost(Bucket) },
 		{"Date", Date } 
 	       | OriginalHeaders ],
-    Options = [ {headers_as_is,true} ],
+    HttpOptions = [ {headers_as_is,true} ] ++ Options,
 
 %    io:format("Sending request ~p~n", [Request]),
-    Reply = ibrowse:send_req(Url, Headers, Method, Body, Options, infinity),
+    Reply = ibrowse:send_req(Url, Headers, Method, Body, HttpOptions, infinity),
 %    io:format("HTTP reply was ~p~n", [Reply]),
     case Reply of
    {ok, Code, ResponseHeaders, ResponseBody}
