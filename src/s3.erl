@@ -32,21 +32,21 @@ start(AwsCredentials) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, AwsCredentials, []).
 
 set_acl(ACL) ->
-     gen_server:call(?MODULE, {set_acl, ACL}).
+     gen_server:call(?MODULE, {set_acl, ACL}, infinity).
 
-create_bucket (Name) -> gen_server:call(?MODULE, {put, Name} ).
-delete_bucket (Name) -> gen_server:call(?MODULE, {delete, Name} ).
-list_buckets ()      -> gen_server:call(?MODULE, {listbuckets}).
+create_bucket (Name) -> gen_server:call(?MODULE, {put, Name}, infinity ).
+delete_bucket (Name) -> gen_server:call(?MODULE, {delete, Name}, infinity ).
+list_buckets ()      -> gen_server:call(?MODULE, {listbuckets}, infinity).
 
 write_object (Bucket, Key, Data, ContentType) -> 
-    gen_server:call(?MODULE, {put, Bucket, Key, Data, ContentType}).
+    gen_server:call(?MODULE, {put, Bucket, Key, Data, ContentType}, infinity).
 read_object (Bucket, Key) -> 
-    gen_server:call(?MODULE, {get, Bucket, Key}).
+    gen_server:call(?MODULE, {get, Bucket, Key}, infinity).
 delete_object (Bucket, Key) -> 
-    gen_server:call(?MODULE, {delete, Bucket, Key}).
+    gen_server:call(?MODULE, {delete, Bucket, Key}, infinity).
 
 %% option example: [{delimiter, "/"},{maxresults,10},{prefix,"/foo"}]
-list_objects (Bucket, Options ) -> gen_server:call(?MODULE, {list, Bucket, Options }).
+list_objects (Bucket, Options ) -> gen_server:call(?MODULE, {list, Bucket, Options }, infinity).
 list_objects (Bucket) -> list_objects( Bucket, [] ).
 
 
