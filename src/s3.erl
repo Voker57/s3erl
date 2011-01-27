@@ -5,19 +5,15 @@
 %%%
 %%% Created : 14 Nov 2007 by Andrew Birkett <andy@nobugs.org>
 %%%-------------------------------------------------------------------
--module(s3).
-
--behaviour(gen_server).
+-module(s3, [AwsCredentials]).
 
 %% API
--export([ start/1, set_acl/1,
+-export([set_acl/1,
 	  list_buckets/0, create_bucket/1, delete_bucket/1,
 	  list_objects/2, list_objects/1, write_object/4, read_object/2,
 	  read_object/3, delete_object/2 ]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
-	 terminate/2, code_change/3]).
+
 
 -include_lib("xmerl/include/xmerl.hrl").
 -include("s3.hrl").
@@ -25,142 +21,44 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
-start(AwsCredentials) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, AwsCredentials, []).
 
 set_acl(ACL) ->
-     gen_server:call(?MODULE, {set_acl, ACL}, infinity).
+     put('x-amz-acl', ACL).
 
-create_bucket (Name) -> gen_server:call(?MODULE, {put, Name}, infinity ).
-delete_bucket (Name) -> gen_server:call(?MODULE, {delete, Name}, infinity ).
-list_buckets ()      -> gen_server:call(?MODULE, {listbuckets}, infinity).
+create_bucket (Bucket) -> {_Headers,_Body} = putRequest( AwsCredentials, Bucket, "", <<>>, "").
 
-write_object (Bucket, Key, Data, ContentType) -> 
-    gen_server:call(?MODULE, {put, Bucket, Key, Data, ContentType}, infinity).
-read_object (Bucket, Key) -> read_object (Bucket, Key, []).
-read_object (Bucket, Key, Options) ->
-    gen_server:call(?MODULE, {get, Bucket, Key, Options}, infinity).
-delete_object (Bucket, Key) -> 
-    gen_server:call(?MODULE, {delete, Bucket, Key}, infinity).
-
-%% option example: [{delimiter, "/"},{maxresults,10},{prefix,"/foo"}]
-list_objects (Bucket, Options ) -> gen_server:call(?MODULE, {list, Bucket, Options }, infinity).
-list_objects (Bucket) -> list_objects( Bucket, [] ).
-
-
-%%====================================================================
-%% gen_server callbacks
-%%====================================================================
-
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
-init(AwsCredentials) ->
-    crypto:start(),
-    inets:start(),
-    ibrowse:start(),
-    {ok, AwsCredentials}.
-
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
-
-handle_call({set_acl, ACL}, _From, AwsCredentials) ->
-    %% Hack: we shall not use the process dictionary but a state
-    %% record instead.
-    put('x-amz-acl', ACL),
-    {reply, {ok, ACL}, AwsCredentials};
-
-% Bucket operations
-handle_call({listbuckets}, _From, AwsCredentials) ->
-    { reply, xmlToBuckets(getRequest( AwsCredentials, "", "", [] )), AwsCredentials };
-
-handle_call({ put, Bucket }, _From, AwsCredentials) ->
-    {_Headers,_Body} = putRequest( AwsCredentials,Bucket, "", <<>>, ""),
-    { reply, {ok}, AwsCredentials };
-
-handle_call({delete, Bucket }, _From, AwsCredentials) ->
-    try 
+delete_bucket (Bucket) ->  try 
 	{_Headers,_Body} = deleteRequest( AwsCredentials, Bucket, ""),
-	{ reply, {ok}, AwsCredentials }
+	ok
     catch
-	throw:X -> { reply, X, AwsCredentials }
-    end;
-
-% Object operations
-handle_call({put, Bucket, Key, Content, ContentType }, _From, AwsCredentials) ->
-    {Headers,_Body} = putRequest( AwsCredentials,Bucket, Key, Content, ContentType),
-    {value,{"ETag",ETag}} = lists:keysearch( "ETag", 1, Headers ),
-    {reply, {ok, ETag}, AwsCredentials};
-
-handle_call({ list, Bucket, Options }, _From, AwsCredentials) ->
-    Headers = lists:map( fun option_to_param/1, Options ),
-    {_, Body} = getRequest( AwsCredentials, Bucket, "", Headers ),
-    {reply, parseBucketListXml(Body), AwsCredentials};
-
-handle_call({ get, Bucket, Key, Options }, _From, AwsCredentials) ->
-    {reply, getRequest( AwsCredentials, Bucket, Key, [], Options ), AwsCredentials};
-
-handle_call({delete, Bucket, Key }, _From, AwsCredentials) ->
-    try 
-	{_Headers,_Body} = deleteRequest( AwsCredentials, Bucket, Key),
-	{reply, {ok}, AwsCredentials}
-    catch
-	throw:X -> { reply, X, AwsCredentials }
+	throw:X -> X
     end.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+list_buckets () -> xmlToBuckets(getRequest( AwsCredentials, "", "", [] )).
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-handle_info(_Info, State) ->
-    {noreply, State}.
+write_object (Bucket, Key, Data, ContentType) -> 
+     {Headers,_Body} = putRequest(AwsCredentials,Bucket, Key, Data, ContentType),
+    {value,{"ETag",ETag}} = lists:keysearch( "ETag", 1, Headers ),
+    {ok, ETag}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
-    ok.
+read_object (Bucket, Key) -> read_object (Bucket, Key, []).
+read_object (Bucket, Key, Options) ->
+    getRequest( AwsCredentials, Bucket, Key, [], Options).
+delete_object (Bucket, Key) -> try
+  {_Headers,_Body} = deleteRequest( AwsCredentials, Bucket, Key),
+	ok
+    catch
+	throw:X -> X
+    end.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+%% option example: [{delimiter, "/"},{maxresults,10},{prefix,"/foo"}]
+list_objects (Bucket, Options ) ->
+	 Headers = lists:map( fun option_to_param/1, Options ),
+    {_, Body} = getRequest( AwsCredentials, Bucket, "", Headers ),
+    parseBucketListXml(Body).
+ 
+list_objects (Bucket) -> list_objects( Bucket, [] ).
 
-%%--------------------------------------------------------------------
-%%% Internal functions
-%%--------------------------------------------------------------------
 
 s3Host () ->
     "s3.amazonaws.com".
@@ -229,7 +127,8 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType, Options ) ->
     Date = httpd_util:rfc1123_date(),
     MethodString = string:to_upper( atom_to_list(Method) ),
-    Url = buildUrl(Bucket,Path,QueryParams),
+    EncodedPath = percent:url_encode(Path),
+    Url = buildUrl(Bucket,EncodedPath,QueryParams),
 
     ACLHeaders = case get('x-amz-acl') of
 		     ACL when is_list(ACL) -> [{"x-amz-acl", ACL}];
