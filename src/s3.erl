@@ -127,7 +127,7 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, ContentType, Options ) ->
     Date = httpd_util:rfc1123_date(),
     MethodString = string:to_upper( atom_to_list(Method) ),
-    EncodedPath = percent:url_encode(Path),
+    EncodedPath = ibrowse_lib:url_encode(erlang:binary_to_list(unicode:characters_to_binary(Path))),
     Url = buildUrl(Bucket,EncodedPath,QueryParams),
 
     ACLHeaders = case get('x-amz-acl') of
@@ -145,7 +145,7 @@ genericRequest( AwsCredentials, Method, Bucket, Path, QueryParams, Contents, Con
 
     Signature = sign( SAK,
 		      stringToSign( MethodString, ContentMD5, ContentType, 
-				    Date, Bucket, Path, OriginalHeaders )),
+				    Date, Bucket, EncodedPath, OriginalHeaders )),
 
     Headers = [ {"Authorization","AWS " ++ AKI ++ ":" ++ Signature },
 		{"Host", buildHost(Bucket) },
