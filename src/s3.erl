@@ -16,7 +16,7 @@
 
 
 -include_lib("xmerl/include/xmerl.hrl").
--include("s3.hrl").
+-include("../include/s3.hrl").
 
 %%====================================================================
 %% API

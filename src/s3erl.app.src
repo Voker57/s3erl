@@ -1,0 +1,12 @@
+{application, s3erl,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { s3erl_app, []}},
+  {env, []}
+ ]}.
