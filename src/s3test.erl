@@ -1,6 +1,6 @@
 -module(s3test).
 -export([run/3]).
--include("/usr/include/erlang/s3.hrl").
+-include("../include/s3.hrl").
  
 run( AKI, SAK, Bucket ) ->
     ibrowse:start(),
